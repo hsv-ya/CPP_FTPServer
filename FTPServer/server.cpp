@@ -21,6 +21,23 @@
 
 #include "server.h"
 
+const char g_sMonths[12][4] = {
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec"
+};
+
+const char systemCommandDEL[] = "del";
+
 // Arguments:
 //      0:  Program name
 //      1:  Port number
@@ -28,6 +45,26 @@
 int main(int argc, char *argv[])
 {
     bool debug = debugMode(argc, argv);                                             // Debug mode off by default.
+
+	if (NULL == getenv("TEMP"))                                                     // in Windows environment string <TEMP> MUST HAVE!!
+	{
+		if (debug)
+		{
+			std::cout << "Error, not find environment <TEMP>!!" << std::endl;
+		}
+		return 1;
+	}
+	else
+	{
+		if (strlen(getenv("TEMP")) > FILENAME_SIZE - 50)
+		{
+			if (debug)
+			{
+				std::cout << "Error, very long size for environment <TEMP>!!" << std::endl;
+			}
+			return 1;
+		}
+	}
 
     int error = startWinsock(debug);                                                // Start winsock.
     if (error)                                                                      // Check if error occurred.
@@ -328,9 +365,14 @@ int acceptClients(SOCKET &s, bool debug)
 
     SOCKET sDataActive = INVALID_SOCKET;                                            // Socket for data transfer.
 
+	unsigned long clientId = 1;                                                     // For check send <Directory> or <FILE DATA>.
+
+	char currentDirectory[FILENAME_SIZE];                                           // For store currect directory.
+    memset(&currentDirectory, 0, FILENAME_SIZE);                                    // Ensure blank.
+
     while (success)
     {
-        success = communicateWithClient(ns, sDataActive, authroisedLogin, debug);   // Receive and handle messages from client.
+        success = communicateWithClient(ns, sDataActive, authroisedLogin, debug, clientId, currentDirectory);   // Receive and handle messages from client.
     }
 
     closeClientConnection(ns, debug);                                               // Close client connection.
@@ -379,7 +421,7 @@ int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddres
 }
 
 // Receive and handle messages from client, returns false if client ends connection.
-bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug)
+bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[])
 {
     char receiveBuffer[BUFFER_SIZE];                                                // Set up receive buffer.
     char userName[80];                                                              // To store the client's username.
@@ -442,17 +484,22 @@ bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogi
 
     else if (strncmp(receiveBuffer, "LIST", 4) == 0)                                // Check if LIST message received from client.
     {
-        success = commandList(ns, sDataActive, debug);                              // Handle command.
+        success = commandList(ns, sDataActive, debug, clientId, currentDirectory);  // Handle command.
     }
 
     else if (strncmp(receiveBuffer, "RETR", 4) == 0)                                // Check if RETR message received from client.
     {
-        success = commandRetrieve(ns, sDataActive, receiveBuffer, debug);           // Handle command.
+        success = commandRetrieve(ns, sDataActive, receiveBuffer, debug, currentDirectory); // Handle command.
     }
 
     else if (strncmp(receiveBuffer, "STOR", 4) == 0)                                // Check if STOR message received from client.
     {
-        success = commandStore(ns, sDataActive, receiveBuffer, debug);              // Handle command.
+        success = commandStore(ns, sDataActive, receiveBuffer, debug, currentDirectory); // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "CWD", 3) == 0)                                 // Check if CWD message received from client.
+    {
+        success = commandChangeWorkingDirectory(ns, receiveBuffer, debug, currentDirectory); // Handle command.
     }
 
     else                                                                            // Command not known.
@@ -717,23 +764,7 @@ bool getClientIPPort(SOCKET &ns, char receiveBuffer[], char ipBuffer[], char por
 
     if (scannedItems < 6)                                                           // Check that syntax as expected.
     {
-        char sendBuffer[BUFFER_SIZE];                                               // Set up send buffer.
-        memset(&sendBuffer, 0, BUFFER_SIZE);                                        // Ensure blank.
-
-        sprintf(sendBuffer,"501 Syntax error in arguments.\r\n");                   // Add message to send buffer.
-        int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                    // Send reply to client.
-
-        if (debug)                                                                  // Check if debug on.
-        {
-            std::cout << "---> " << sendBuffer;
-        }
-
-        if (bytes < 0)                                                              // Check if message sent.
-        {
-            return false;                                                           // Message not sent, return that connection ended.
-        }
-
-        return true;                                                                // Failed but don't end connection.
+        return sendArgumentSyntaxError(ns, debug);                                  // Failed but don't end connection.
     }
 
     sprintf(ipBuffer, "%d.%d.%d.%d", activeIP[0], activeIP[1], activeIP[2], activeIP[3]); // Create decimal representation of IP (IPv4 format).
@@ -866,9 +897,14 @@ bool sendFailedActiveConnection(SOCKET &ns, bool debug)
 }
 
 // Client sent LIST command, returns false if fails.
-bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug)
+bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug, unsigned long &clientId, char currentDirectory[])
 {
-    int successLevel = sendFile(ns, sDataActive, "tmpDir.txt", debug);              // Create and send directory listing.
+	char tmpDir[FILENAME_SIZE] = { 0 };                                             // Temp file name for clientId
+	char* pathTemp = getenv("TEMP");                                                // in Windows environment string <TEMP> MUST HAVE!!
+
+	sprintf(tmpDir, "%s\\%lu_tmpDir.txt", pathTemp, clientId);                      // Path to file where store directories list and files list for sent.
+
+    int successLevel = sendFile(ns, sDataActive, tmpDir, debug, clientId, currentDirectory); // Create and send directory listing.
     if (successLevel != 1)                                                          // Check if direcoty listing sent correctly.
     {
         closesocket(sDataActive);                                                   // Close active connection.
@@ -898,13 +934,143 @@ bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug)
 }
 
 // Sends specified file to client.
-int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
+int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug, unsigned long clientId, char currentDirectory[])
 {
-    if (!strcmp(fileName, "tmpDir.txt"))                                            // Check if LIST call.
+	char tmpDir[FILENAME_SIZE] = { 0 };                                             // Temp file name for sent as LIST
+	char tmpDir_DIR[FILENAME_SIZE] = { 0 };                                         // Temp file name with container <Directory> for clientId
+	char tmpDir_FILE[FILENAME_SIZE] = { 0 };                                        // Temp file name with container <Files> for clientId
+	char tmpDir_dirDirectory[FILENAME_SIZE] = { "dir /A:D /B" };                    // System command for create list <Directory>
+	char tmpDir_dirFiles[FILENAME_SIZE] = { "dir /A:-D /-C" };                      // System command for create list <Files>
+	char* pathTemp = NULL;
+
+	if (clientId)                                                                   // Check if LIST call.
     {
         std::cout << "Client has requested the directory listing." << std::endl;
 
-        system("dir > tmpDir.txt");                                                 // Save directory information in temp file.
+		pathTemp = getenv("TEMP");                                                  // in Windows environment string <TEMP> MUST HAVE!!
+
+		sprintf(tmpDir, "%s\\%lu_tmpDir.txt", pathTemp, clientId);
+		sprintf(tmpDir_DIR, "%s\\%lu_tmpDir2.txt", pathTemp, clientId);
+		sprintf(tmpDir_FILE, "%s\\%lu_tmpDir3.txt", pathTemp, clientId);
+
+		strcat(tmpDir_dirDirectory, " >");
+		strcat(tmpDir_dirDirectory, tmpDir_DIR);
+
+		strcat(tmpDir_dirFiles, " >");
+		strcat(tmpDir_dirFiles, tmpDir_FILE);
+
+        // Save directory information in temp file.
+		executeSystemCommand(tmpDir_dirDirectory, currentDirectory, debug);
+
+		if (debug)
+        {
+			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirDirectory << " " << currentDirectory << std::endl;
+        }
+
+		executeSystemCommand(tmpDir_dirFiles, currentDirectory, debug);             // Save file information in temp file.
+
+		if (debug)
+        {
+			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirFiles << " " << currentDirectory << std::endl;
+        }
+
+		FILE *fInDIR = fopen(tmpDir, "w");                                          // Open file.
+
+		FILE *fInDirectory = fopen(tmpDir_DIR, "r");                                // Open file.
+
+		char tmpBuffer[BUFFER_SIZE];
+		char tmpBufferDir[BUFFER_SIZE];
+		bool isFirst = true;
+
+		while (!feof(fInDirectory))                                                 // Scan till end of file.
+		{
+			memset(&tmpBuffer, 0, BUFFER_SIZE);                                     // Clean buffer.
+			if (NULL == fgets(tmpBuffer, BUFFER_SIZE, fInDirectory))                // Read data.
+            {
+				break;
+            }
+			killLastCRLF(tmpBuffer);
+			memset(&tmpBufferDir, 0, BUFFER_SIZE);
+			strcpy(tmpBufferDir, "drw-rw-rw-    1 user       group        512 Oct 15  2024 ");
+			strcat(tmpBufferDir, tmpBuffer);
+			if (!isFirst)
+            {
+				fputs("\n", fInDIR);
+            }
+			else
+            {
+				isFirst = false;
+            }
+			fputs(tmpBufferDir, fInDIR);
+			if (debug)                                                              // Check if debug on.
+            {
+				std::cout << tmpBufferDir << std::endl;
+            }
+			if (ferror(fInDIR))
+            {
+				break;
+            }
+		}
+
+		fclose(fInDirectory);                                                       // Close the file.
+
+		FILE *fInFiles = fopen(tmpDir_FILE, "r");                                   // Open file.
+
+		int skipLines = 5;
+		while (!feof(fInFiles) && skipLines > 0)
+		{
+			memset(&tmpBuffer, 0, BUFFER_SIZE);
+			if (NULL == fgets(tmpBuffer, BUFFER_SIZE, fInFiles))
+            {
+				break;
+            }
+			skipLines--;
+		}
+
+		int iDay, iMonths, iYear, iHour, iMinute;
+		unsigned long ulFileSize;
+		char tmpFileName[FILENAME_SIZE];
+		char tmpBufferFile[FILENAME_SIZE];
+
+		while (!feof(fInFiles))                                                     // Scan till end of file.
+		{
+			memset(&tmpBuffer, 0, BUFFER_SIZE);
+			if (NULL == fgets(tmpBuffer, BUFFER_SIZE, fInFiles))
+            {
+				break;
+            }
+			if (isNumerical(tmpBuffer[0]))                                          // Parsing the string if there is data
+			{
+				memset(&tmpFileName, 0, FILENAME_SIZE);
+				sscanf(tmpBuffer, "%2d.%2d.%4d  %2d:%2d %17lu %*s", &iDay, &iMonths, &iYear, &iHour, &iMinute, &ulFileSize);
+				strcpy(tmpFileName, tmpBuffer + 36);
+				killLastCRLF(tmpFileName);
+				memset(&tmpBufferFile, 0, FILENAME_SIZE);
+				sprintf(tmpBufferFile, "-rw-rw-rw-    1 user       group %10lu %s %2d  %4d ", ulFileSize, g_sMonths[iMonths - 1], iDay, iYear);
+                strcat(tmpBufferFile, tmpFileName);
+                if (!isFirst)
+                {
+					fputs("\n", fInDIR);
+                }
+				else
+                {
+					isFirst = false;
+                }
+				fputs(tmpBufferFile, fInDIR);
+				if (debug)                                                          // Check if debug on.
+                {
+					std::cout << tmpBufferFile << std::endl;
+                }
+				if (ferror(fInDIR))
+                {
+					break;
+                }
+			}
+		}
+
+		fclose(fInFiles);                                                           // Close the file.
+
+		fclose(fInDIR);                                                             // Close the file.
     }
     else
     {
@@ -914,7 +1080,28 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
     char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
-    FILE *fIn = fopen(fileName, "r");                                               // Open file.
+	FILE *fIn = NULL;
+
+	if (clientId)                                                                   // Check if LIST call.
+    {
+		fIn = fopen(fileName, "rb");                                                // Open file for command LIST.
+    }
+	else
+	{
+		char fileNameFull[FILENAME_SIZE];                                           // Set up buffer for FULLFILENAME.
+		memset(&fileNameFull, 0, FILENAME_SIZE);                                    // Ensure blank.
+
+		strcpy(fileNameFull, currentDirectory);                                     // Add current directory.
+
+		if (strlen(fileNameFull) > 0)                                               // Check if not blank current directory.
+        {
+			strcat(fileNameFull, "\\");                                             // Add separator.
+        }
+		strcat(fileNameFull, fileName);                                             // Add file name.
+
+        fIn = fopen(fileNameFull, "rb");                                        // Open file.
+	}
+
     if (fIn == NULL)                                                                // Check if valid file.
     {
         std::cout << "The file: \"" << fileName << "\" does not exist." << std::endl;
@@ -946,47 +1133,64 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
 
         if (bytes < 0)                                                              // Check if message sent.
         {
-            if (!strcmp(fileName, "tmpDir.txt"))                                    // Check if LIST call.
+            fclose(fIn);                                                            // Close the file.
+
+			if (clientId)                                                           // Check if LIST call.
             {
-                fclose(fIn);                                                        // Close the file.
-                system("del tmpDir.txt");                                           // Save directory information in temp file.
+				if (!debug)                                                         // Check if debug off.
+				{
+					executeSystemCommand(systemCommandDEL, tmpDir, debug);          // Delete temp file.
+					executeSystemCommand(systemCommandDEL, tmpDir_DIR, debug);      // Delete temp file.
+					executeSystemCommand(systemCommandDEL, tmpDir_FILE, debug);     // Delete temp file.
+				}	
             }
 
             return 0;                                                               // Message not sent, return that connection ended.
         }
     }
 
-    char tempBuffer[80];                                                            // Temporary character buffer.
-    memset(&tempBuffer, 0, 80);                                                     // Ensure blank.
+    char tempBuffer[BIG_BUFFER_SIZE + 1];                                           // Temporary character buffer.
 
     while (!feof(fIn))                                                              // Scan till end of file.
     {
-        fgets(tempBuffer, 78, fIn);                                                 // Get data from file into temp buffer.
+		size_t result = fread(tempBuffer, 1, BIG_BUFFER_SIZE, fIn);                 // Get data from file into temp buffer.
 
-        char sendBuffer[BUFFER_SIZE];                                               // Set up send buffer.
-        memset(&sendBuffer, 0, BUFFER_SIZE);                                        // Ensure blank.
+		// send buffer to client
+		size_t sent = 0;
+		while (sent < result)                                                       // While not all sent
+		{
+			int n = send(sDataActive, tempBuffer + sent, result - sent, 0);         // Send over active connection.
 
-        sprintf(sendBuffer, "%s", tempBuffer);                                      // Add data to send buffer.
+			if (n == -1) {                                                          // Check if ERROR
+				fclose(fIn);                                                        // Close the file.
 
-        int bytes = send(sDataActive, sendBuffer, strlen(sendBuffer), 0);           // Send over active connection.
+				if (clientId)                                                       // Check if LIST call.
+				{
+					if (!debug)                                                     // Check if debug off.
+					{
+						executeSystemCommand(systemCommandDEL, tmpDir, debug);      // Delete temp file.
+						executeSystemCommand(systemCommandDEL, tmpDir_DIR, debug);  // Delete temp file.
+						executeSystemCommand(systemCommandDEL, tmpDir_FILE, debug); // Delete temp file.
+					}
+				}
 
-        if (bytes < 0)                                                              // Check if error in sending.
-        {
-            if (!strcmp(fileName, "tmpDir.txt"))                                    // Check if LIST call.
-            {
-                fclose(fIn);                                                        // Close the file.
-                system("del tmpDir.txt");                                           // Save directory information in temp file.
-            }
+				return 0;                                                           // Message not sent, return that connection ended.
+			}
 
-            return 0;                                                               // Return failure.
-        }
+			sent += n;                                                              // Counting the bytes sent
+		}
     }
 
     fclose(fIn);                                                                    // Close the file.
 
-    if (!strcmp(fileName, "tmpDir.txt"))                                            // Check if LIST call.
+    if (clientId)                                                                   // Check if LIST call.
     {
-        system("del tmpDir.txt");                                                   // Save directory information in temp file.
+		if (!debug)                                                                 // Check if debug off.
+		{
+			executeSystemCommand(systemCommandDEL, tmpDir, debug);                  // Delete temp file.
+			executeSystemCommand(systemCommandDEL, tmpDir_DIR, debug);              // Delete temp file.
+			executeSystemCommand(systemCommandDEL, tmpDir_FILE, debug);             // Delete temp file.
+		}
     }
 
     std::cout << "File sent successfully."<< std::endl;
@@ -994,16 +1198,46 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
     return 1;                                                                       // Return success.
 }
 
+// return '0' if not have error.
+int executeSystemCommand(const char commandNameWithKeys[], const char fileName[], bool debug)
+{
+	char executeCommand[FILENAME_SIZE];                                             // Store for the generated command
+	memset(&executeCommand, 0, FILENAME_SIZE);                                      // Ensure empty.
+
+	strcpy(executeCommand, commandNameWithKeys);                                    // Set command from parameter 'commandNameWithKeys'
+
+	strcat(executeCommand, " ");                                                    // Add <SPACE> between the command and the parameter
+
+	if (NULL != strchr(fileName, ' '))                                              // Check if <SPACE> in name.
+	{
+		strcat(executeCommand, "\"");                                               // Add quotation marks.
+	}
+
+	strcat(executeCommand, fileName);                                               // Add parameter to command.
+
+	if (NULL != strchr(fileName, ' '))                                              // Check if <SPACE> in name.
+	{
+		strcat(executeCommand, "\"");                                               // Add quotation marks.
+	}
+
+	if (debug)                                                                      // Check if debug on.
+	{
+		std::cout << "Execute command: " << executeCommand << std::endl;
+	}
+
+	return system(executeCommand);                                                  // Execute created system command.
+}
+
 // Client sent RETR command, returns false if fails.
-bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug)
+bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug, char currentDirectory[])
 {
     char fileName[FILENAME_SIZE];                                                   // Stores the name of the file to transfer.
     memset(&fileName, 0, FILENAME_SIZE);                                            // Ensure empty.
 
     removeCommand(receiveBuffer, fileName);                                         // Get file name from command.
 
-    bool success = sendFile(ns, sDataActive, fileName, debug);                      // Create and send directory listing.
-    if (!success)                                                                   // Check if direcoty listing sent correctly.
+    bool success = sendFile(ns, sDataActive, fileName, debug, 0, currentDirectory); // Send file by name.
+    if (!success)                                                                   // Check if file sent correctly.
     {
         closesocket(sDataActive);                                                   // Close active connection.
 
@@ -1032,14 +1266,14 @@ bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool
 }
 
 // Client sent STORE command, returns false if fails.
-bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug)
+bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug, char currentDirectory[])
 {
     char fileName[FILENAME_SIZE];                                                   // Stores the name of the file to transfer.
     memset(&fileName, 0, FILENAME_SIZE);                                            // Ensure empty.
 
     removeCommand(receiveBuffer, fileName);                                         // Get file name from command.
 
-    bool success = saveFile(ns, sDataActive, fileName, debug);                      // Save the file to drive.
+    bool success = saveFile(ns, sDataActive, fileName, debug, currentDirectory);    // Save the file to drive.
     if (!success)                                                                   // Check if direcoty listing sent correctly.
     {
         closesocket(sDataActive);                                                   // Close active connection.
@@ -1069,14 +1303,11 @@ bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool de
 }
 
 // Sends specified file to client.
-bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
+bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug, char currentDirectory[])
 {
     std::cout << "Client has requested to store the file: \"" << fileName << "\"." << std::endl;
 
-    char receiveBuffer[BUFFER_SIZE];                                                // Set up send buffer.
     char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-
-    memset(&receiveBuffer, 0, BUFFER_SIZE);                                         // Ensure blank.
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
     sprintf(sendBuffer, "150 Data connection ready.\r\n");                          // Add message to send buffer.
@@ -1092,19 +1323,34 @@ bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug
         return false;                                                               // Message not sent, return that connection ended.
     }
 
-    char tempBuffer[80];                                                            // Temporary character buffer.
-    memset(&tempBuffer, 0, 80);                                                     // Ensure blank.
+	char fileNameFull[FILENAME_SIZE];                                               // Set up buffer for FULLFILENAME.
+	memset(&fileNameFull, 0, FILENAME_SIZE);                                        // Ensure blank.
+
+	strcat(fileNameFull, currentDirectory);                                         // Add current directory.
+
+	if (strlen(fileNameFull) > 0)                                                   // Check if not blank current directory.
+	{
+		strcat(fileNameFull, "\\");                                                 // Add separator.
+	}
+
+	strcat(fileNameFull, fileName);                                                 // Add file name.
 
     std::ofstream fOut;                                                             // Output file stream.
-    fOut.open(fileName);                                                            // Open file.
 
+    fOut.open(fileNameFull, std::ofstream::binary);                             // Open file.
+
+    char tempBuffer[BIG_BUFFER_SIZE];                                               // Temporary character buffer.
+	int sizeBuffer = 0;
     bool moreFile = true;                                                           // Flag for more file to read.
 
     while (moreFile)                                                                // Scan till end of file.
     {
-        moreFile = receiveFileContents(sDataActive, tempBuffer);                    // Receive file contents.
+        moreFile = receiveFileContents(sDataActive, tempBuffer, sizeBuffer);        // Receive file contents.
 
-        fOut << tempBuffer;                                                         // Save buffer to file.
+		if (sizeBuffer > 0)                                                         // Save only if there is data.
+		{
+			fOut.write(tempBuffer, sizeBuffer);                                     // Save buffer to file.
+		}
     }
 
     fOut.close();                                                                   // Close the file.
@@ -1115,26 +1361,28 @@ bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug
 }
 
 // Receives message and saves it in receive buffer, returns false if connection ended.
-bool receiveFileContents(SOCKET &sDataActive, char receiveBuffer[])
+bool receiveFileContents(SOCKET &sDataActive, char receiveBuffer[], int &sizeBuffer)
 {
     int i = 0;                                                                      // Index of character of the receive buffer to look at.
     int bytes = 0;                                                                  // Response of receive function.
 
     bool fileToRead = true;                                                         // If more file to read this is true.
 
-    while (fileToRead && i < 79)                                                    // Read each byte of file.
+    while (fileToRead && i < BIG_BUFFER_SIZE - 1)                                   // Read each byte of file.
     {
-        bytes = recv(sDataActive, &receiveBuffer[i], 1, 0);                         // Inspect receive buffer byte by byte.
+        bytes = recv(sDataActive, receiveBuffer + i, BIG_BUFFER_SIZE - 1 - i, 0);   // Inspect receive buffer byte by byte.
 
         if ((bytes == SOCKET_ERROR) || (bytes == 0))                                // If nothing in receive buffer client has disconnected.
         {
             fileToRead = false;                                                     // No message, end read loop.
+
+			break;                                                                  // To avoid writing an extra character.
         }
 
-        i++;
+        i += bytes;
     }
 
-    receiveBuffer[i] = '\0';                                                        // Cap string.
+    sizeBuffer = i;                                                                 // Set how much data was received.
 
     if ((bytes == SOCKET_ERROR) || (bytes == 0))                                    // Client disconnected.
     {
@@ -1142,6 +1390,32 @@ bool receiveFileContents(SOCKET &sDataActive, char receiveBuffer[])
     }
 
     return true;                                                                    // Client still connected.
+}
+
+// Client sent CWD command, returns false if connection ended.
+bool commandChangeWorkingDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char currentDirectory[FILENAME_SIZE])
+{
+    removeCommand(receiveBuffer, currentDirectory);                                 // Get directory name from command.
+
+	replaceBackslash(currentDirectory);                                             // Replace '/' to '\' for Windows
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer, "250 Directory successfully changed.\r\n");                 // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
 }
 
 // Client sent unknown command, returns false if fails.
@@ -1167,14 +1441,14 @@ bool commandUnknown(SOCKET &ns, bool debug)
 }
 
 // Takes a string with a 4 letter command at beginning and saves an output string with this removed.
-void removeCommand(const char inputString[], char outputString[])
+void removeCommand(const char inputString[], char outputString[], unsigned int skipCharacters)
 {
     unsigned int i = 0;                                                             // Array index.
     unsigned int length = strlen(inputString);                                      // Length of string.
 
-    for (; i + 5 < length; i++)                                                     // Scan over input string.
+    for (; i + skipCharacters + 1 < length; i++)                                    // Scan over input string.
     {
-        outputString[i] = inputString[i + 5];                                       // Copy character to output string.
+        outputString[i] = inputString[i + skipCharacters + 1];                      // Copy character to output string.
     }
 
     outputString[i] = '\0';                                                         // Cap output string.
@@ -1247,3 +1521,29 @@ void closeClientConnection(SOCKET &ns, bool debug)
     closesocket(ns);                                                                // Close socket.
 }
 
+// Delete <CR> and <LF> in end of string.
+void killLastCRLF(char buffer[])
+{
+	while(0 < strlen(buffer) && 
+	     ('\r' == buffer[strlen(buffer) - 1] ||
+		  '\n' == buffer[strlen(buffer) - 1])
+		 )
+    {
+		buffer[strlen(buffer) - 1] = 0;
+    }
+}
+
+// Replace '/' to '\' for Windows
+void replaceBackslash(char buffer[])
+{
+    size_t i = 0;                                                                   // Array index.
+    size_t length = strlen(buffer);                                                 // Length of character buffer.
+
+    for (; i < length; i++)                                                         // Scan over buffer.
+    {
+		if ('/' == buffer[i])                                                       // Check if right character
+        {
+			buffer[i] = '\\';                                                       // Set backslash.
+        }
+    }
+}

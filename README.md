@@ -14,4 +14,5 @@ PORT
 LIST
 RETR
 STOR
+CWD
 ```
