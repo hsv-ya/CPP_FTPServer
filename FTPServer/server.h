@@ -10,6 +10,7 @@
 #define DEFAULT_PORT "21"
 #define USE_IPV6 true
 #define BUFFER_SIZE 200
+#define FILENAME_SIZE 1024
 
 bool debugMode(int argc, char * argv[]);                                            // Returns true if user indicated that debug mode should be on.
 int startWinsock(bool debug);                                                       // Starts WSA.
@@ -26,15 +27,15 @@ int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddres
 bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug); // Receive and handle messages from client, returns true if client ends connection.
 bool receiveMessage(SOCKET &ns, char receiveBuffer[], bool debug);                  // Receives message and saves it in receive buffer, returns true if message was received.
 void closeClientConnection(SOCKET &ns, bool debug);                                 // Sends client the closing connection method and closes the socket.
-bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &authroisedLogin, bool debug); // Client sent USER command, returns flase if fails.
-bool commandPassword(SOCKET &ns, char receiveBuffer[], char password[], bool authroisedLogin, bool debug);  // Client sent PASS command, returns flase if fails.
-bool commandSystemInformation(SOCKET &ns, bool debug);                              // Client sent SYST command, returns flase if fails.
-bool commandQuit(SOCKET &ns, bool debug);                                           // Client sent QUIT command, returns flase if fails.
-bool commandDataPort(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);    // Client sent PORT command, returns flase if fails.
-bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug);                      // Client sent LIST command, returns flase if fails.
-bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);    // Client sent RETR command, returns flase if fails.
-bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);   // Client sent STORE command, returns flase if fails.
-bool commandUnknown(SOCKET &ns, bool debug);                                        // Client sent unknown command, returns flase if send fails.
+bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &authroisedLogin, bool debug); // Client sent USER command, returns false if fails.
+bool commandPassword(SOCKET &ns, char receiveBuffer[], char password[], bool authroisedLogin, bool debug);  // Client sent PASS command, returns false if fails.
+bool commandSystemInformation(SOCKET &ns, bool debug);                              // Client sent SYST command, returns false if fails.
+bool commandQuit(SOCKET &ns, bool debug);                                           // Client sent QUIT command, returns false if fails.
+bool commandDataPort(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);    // Client sent PORT command, returns false if fails.
+bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug);                      // Client sent LIST command, returns false if fails.
+bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);    // Client sent RETR command, returns false if fails.
+bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug);   // Client sent STORE command, returns false if fails.
+bool commandUnknown(SOCKET &ns, bool debug);                                        // Client sent unknown command, returns false if send fails.
 
 void removeCommand(const char inputString[], char outputString[]);                  // Takes a string with a 4 letter command at beggining and saves an output string with this removed.
 bool isValidUserName(const char userName[]);                                        // Returns true if valid user name.

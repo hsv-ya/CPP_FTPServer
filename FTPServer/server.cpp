@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     {
         return error;                                                               // Exit with error code.
     }
-    
+
     struct addrinfo *result = NULL;                                                 // Structure for server's address information.
 
     error = getServerAddressInfo(result, argc, argv, debug);                        // Get server's address information.
@@ -146,7 +146,7 @@ int getServerAddressInfo(struct addrinfo * &result, int argc, char *argv[], bool
     {
         iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);                 // Resolve local address and port to be used by the server.
     }
-    
+
     if (iResult != 0)                                                               // Check for expected execution of getaddrinfo.
     {
         std::cout << "getaddrinfo() failed: " << iResult << std::endl;
@@ -305,11 +305,11 @@ int acceptClients(SOCKET &s, bool debug)
         return error;                                                               // Exit with error code.
     }
 
-    char sendBuffer[BUFFER_SIZE];                                                  // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                           // Ensure blank.
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
-    sprintf(sendBuffer,"220 FTP Server ready.\r\n");                               // Add accept message for client to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                      // Send accept message to client.
+    sprintf(sendBuffer,"220 FTP Server ready.\r\n");                                // Add accept message for client to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send accept message to client.
 
     if (debug)                                                                      // Check if debug on.
     {
@@ -388,7 +388,7 @@ bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogi
     memset(&receiveBuffer, 0, BUFFER_SIZE);                                         // Ensure blank.
     memset(&userName, 0, 80);                                                       // Initialise as blank string.
     memset(&password, 0, 80);                                                       // Initialise as blank string.
-    
+
     bool receiptSuccessful = true;                                                  // True if reply sent successfully.
 
     receiptSuccessful = receiveMessage(ns, receiveBuffer, debug);                   // Receives message and saves it in receive buffer.
@@ -440,18 +440,17 @@ bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogi
         success = commandDataPort(ns, sDataActive, receiveBuffer, debug);           // Handle command.
     }
 
-    //technically, LIST is different than NLST,but we make them the same here
-    else if ( (strncmp(receiveBuffer, "LIST", 4) == 0) || (strncmp(receiveBuffer, "NLST", 4) == 0))   // Check if LIST or NLST message received from client.
+    else if (strncmp(receiveBuffer, "LIST", 4) == 0)                                // Check if LIST message received from client.
     {
         success = commandList(ns, sDataActive, debug);                              // Handle command.
     }
 
-    else if ( (strncmp(receiveBuffer, "RETR", 4) == 0))                             // Check if RETR message received from client.
+    else if (strncmp(receiveBuffer, "RETR", 4) == 0)                                // Check if RETR message received from client.
     {
         success = commandRetrieve(ns, sDataActive, receiveBuffer, debug);           // Handle command.
     }
 
-    else if ( (strncmp(receiveBuffer, "STOR", 4) == 0))                             // Check if STOR message received from client.
+    else if (strncmp(receiveBuffer, "STOR", 4) == 0)                                // Check if STOR message received from client.
     {
         success = commandStore(ns, sDataActive, receiveBuffer, debug);              // Handle command.
     }
@@ -530,7 +529,7 @@ bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &au
 
         authroisedLogin = false;                                                    // Don't need authorised password to log in.
 
-        sprintf(sendBuffer, "331 Public login requested, please specify email as password.\r\n");               // Add message to send buffer.
+        sprintf(sendBuffer, "331 Public login requested, please specify email as password.\r\n");   // Add message to send buffer.
     }
 
     int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
@@ -539,7 +538,7 @@ bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &au
     {
         std::cout << "---> " << sendBuffer;
     }
-    
+
     if (bytes < 0)                                                                  // Check if message sent.
     {
         return false;                                                               // Message not sent, return that connection ended.
@@ -642,12 +641,12 @@ bool commandDataPort(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool
 {
     std::cout << "===================================================" << std::endl;
     std::cout << "\tActive FTP mode, the client is listening..." << std::endl;
-    
+
     char ipBuffer[40];                                                              // Stores decimal representation of client IP.
     char portBuffer[6];                                                             // Stores decimal representation of client port.
 
     memset(&ipBuffer, 0, 40);                                                       // Ensure blank.
-    memset(&portBuffer, 0, 40);                                                     // Ensure blank.
+    memset(&portBuffer, 0, 6);                                                      // Ensure blank.
 
     bool success = getClientIPPort(ns, receiveBuffer, ipBuffer, portBuffer, debug); // Get the IP address and port of the client.
     if (!success)                                                                   // Did not succeed.
@@ -715,7 +714,7 @@ bool getClientIPPort(SOCKET &ns, char receiveBuffer[], char ipBuffer[], char por
     int scannedItems = sscanf(receiveBuffer, "PORT %d,%d,%d,%d,%d,%d",              // Get port and IP information from client message.
                               &activeIP[0], &activeIP[1], &activeIP[2], &activeIP[3],
                               &activePort[0], &activePort[1]);
-    
+
     if (scannedItems < 6)                                                           // Check that syntax as expected.
     {
         char sendBuffer[BUFFER_SIZE];                                               // Set up send buffer.
@@ -738,7 +737,7 @@ bool getClientIPPort(SOCKET &ns, char receiveBuffer[], char ipBuffer[], char por
     }
 
     sprintf(ipBuffer, "%d.%d.%d.%d", activeIP[0], activeIP[1], activeIP[2], activeIP[3]); // Create decimal representation of IP (IPv4 format).
-    
+
     std::cout << "\tClient's IP is " << ipBuffer << std::endl;                      // IPv4 format client address.
 
     int portDecimal = activePort[0];                                                // The port number as a decimal.
@@ -787,14 +786,14 @@ bool getClientAddressInfoActive(SOCKET &ns, struct addrinfo * &result, const cha
 
     int iResult;                                                                    // Create return value.
     iResult = getaddrinfo(ipBuffer, portBuffer, &hints, &result);                   // Resolve address information for client connection.
-    
+
     if (iResult != 0)                                                               // Check for expected execution of getaddrinfo.
     {
         std::cout << "getaddrinfo() for client failed: " << iResult << std::endl;
 
         return false;                                                               // Failed.
     }
-    
+
     if (debug)                                                                      // Check if debug info should be displayed.
     {
         std::cout << "<<<DEBUG INFO>>>: Client address information created." << std::endl;
@@ -937,7 +936,7 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
     }
     else
     {
-        sprintf(sendBuffer, "150 Opening ASCII mode data connection.\r\n");         // Add message to send buffer.
+        sprintf(sendBuffer, "150 Data connection ready. \r\n");                     // Add message to send buffer.
         int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                    // Send reply to client.
 
         if (debug)                                                                  // Check if debug on.
@@ -995,11 +994,11 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug)
     return 1;                                                                       // Return success.
 }
 
-// Client sent RETR command, returns flase if fails.
+// Client sent RETR command, returns false if fails.
 bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug)
 {
-    char fileName[80];                                                              // Stores the name of the file to transfer.
-    memset(&fileName, 0, 80);                                                       // Ensure empty.
+    char fileName[FILENAME_SIZE];                                                   // Stores the name of the file to transfer.
+    memset(&fileName, 0, FILENAME_SIZE);                                            // Ensure empty.
 
     removeCommand(receiveBuffer, fileName);                                         // Get file name from command.
 
@@ -1032,11 +1031,11 @@ bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool
     return true;                                                                    // Connection not ended, command handled.
 }
 
-// Client sent STORE command, returns flase if fails.
+// Client sent STORE command, returns false if fails.
 bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug)
 {
-    char fileName[80];                                                              // Stores the name of the file to transfer.
-    memset(&fileName, 0, 80);                                                       // Ensure empty.
+    char fileName[FILENAME_SIZE];                                                   // Stores the name of the file to transfer.
+    memset(&fileName, 0, FILENAME_SIZE);                                            // Ensure empty.
 
     removeCommand(receiveBuffer, fileName);                                         // Get file name from command.
 
@@ -1080,7 +1079,7 @@ bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug
     memset(&receiveBuffer, 0, BUFFER_SIZE);                                         // Ensure blank.
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
-    sprintf(sendBuffer, "150 Opening ASCII mode data connection.\r\n");             // Add message to send buffer.
+    sprintf(sendBuffer, "150 Data connection ready.\r\n");                          // Add message to send buffer.
     int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
 
     if (debug)                                                                      // Check if debug on.
@@ -1145,7 +1144,7 @@ bool receiveFileContents(SOCKET &sDataActive, char receiveBuffer[])
     return true;                                                                    // Client still connected.
 }
 
-// Client sent OPTS command, returns false if fails.
+// Client sent unknown command, returns false if fails.
 bool commandUnknown(SOCKET &ns, bool debug)
 {
     char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
@@ -1244,7 +1243,7 @@ void closeClientConnection(SOCKET &ns, bool debug)
     }
 
     std::cout << "Disconnected from client." << std::endl;
-    
+
     closesocket(ns);                                                                // Close socket.
 }
 
