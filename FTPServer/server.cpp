@@ -1422,8 +1422,20 @@ bool commandDelete(SOCKET &ns, char receiveBuffer[], bool debug)
     removeCommand(receiveBuffer, fileName, 5);                                      // Get file name from command.
 
 	replaceBackslash(fileName);                                                     // Replace '/' to '\' for Windows
+    
+    char bufferForNewName[FILENAME_SIZE];
+    memset(&bufferForNewName, 0, FILENAME_SIZE);
+    
+    if (!g_convertKirillica)
+    {
+        strcpy(bufferForNewName, fileName);
+    }
+    else
+    {
+        simple_conv(fileName, strlen(fileName), bufferForNewName, FILENAME_SIZE, true);
+    }
 
-	executeSystemCommand(systemCommandDEL, fileName, debug);
+	executeSystemCommand(systemCommandDEL, bufferForNewName, debug);
 
 	if (debug)
 	{
@@ -1443,7 +1455,19 @@ bool commandMakeDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char cur
 
 	replaceBackslash(directoryName);                                                // Replace '/' to '\' for Windows
 
-	executeSystemCommand(systemCommandMKDIR, directoryName, debug);
+    char bufferForNewName[FILENAME_SIZE];
+    memset(&bufferForNewName, 0, FILENAME_SIZE);
+    
+    if (!g_convertKirillica)
+    {
+        strcpy(bufferForNewName, directoryName);
+    }
+    else
+    {
+        simple_conv(directoryName, strlen(directoryName), bufferForNewName, FILENAME_SIZE, true);
+    }
+
+	executeSystemCommand(systemCommandMKDIR, bufferForNewName, debug);
 
 	if (debug)                                                                      // Check if debug on.
 	{
@@ -1468,7 +1492,19 @@ bool commandDeleteDirectory(SOCKET &ns, char receiveBuffer[], bool debug)
 
 	replaceBackslash(directoryName);                                                // Replace '/' to '\' for Windows
 
-	executeSystemCommand(systemCommandRMDIR, directoryName, debug);
+    char bufferForNewName[FILENAME_SIZE];
+    memset(&bufferForNewName, 0, FILENAME_SIZE);
+    
+    if (!g_convertKirillica)
+    {
+        strcpy(bufferForNewName, directoryName);
+    }
+    else
+    {
+        simple_conv(directoryName, strlen(directoryName), bufferForNewName, FILENAME_SIZE, true);
+    }
+
+	executeSystemCommand(systemCommandRMDIR, bufferForNewName, debug);
 
 	if (debug)
 	{
