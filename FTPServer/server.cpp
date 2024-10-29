@@ -619,7 +619,7 @@ bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &au
 
         authroisedLogin = true;                                                     // Need authorised password to log in.
 
-        sprintf(sendBuffer, "331 Authorised login requested, please specify the password.\r\n");    // Add message to send buffer.
+        return sendMessage(ns, "331 Authorised login requested, please specify the password.\r\n", debug);
     }
     else                                                                            // User name invalid
     {
@@ -627,9 +627,13 @@ bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &au
 
         authroisedLogin = false;                                                    // Don't need authorised password to log in.
 
-        sprintf(sendBuffer, "331 Public login requested, please specify email as password.\r\n");   // Add message to send buffer.
+        return sendMessage(ns, "331 Public login requested, please specify email as password.\r\n", debug);
     }
+}
 
+// Send message to client, returns true if message was sended.
+bool sendMessage(SOCKET &ns, const char sendBuffer[], bool debug)
+{
     int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
 
     if (debug)                                                                      // Check if debug on.
@@ -837,23 +841,7 @@ bool getClientIPPort(SOCKET &ns, char receiveBuffer[], char ipBuffer[], char por
 // Sends the client a message to say data connection failed.
 bool sendArgumentSyntaxError(SOCKET &ns, bool debug)
 {
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer,"501 Syntax error in arguments.\r\n");                       // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;
+    return sendMessage(ns, "501 Syntax error in arguments.\r\n", debug);
 }
 
 // Gets the servers address information based on arguments.
@@ -928,23 +916,7 @@ bool connectDataTransferSocket(SOCKET &sDataActive, struct addrinfo *result, boo
 // Sends the client a message to say data connection failed.
 bool sendFailedActiveConnection(SOCKET &ns, bool debug)
 {
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer,"425 Something is wrong, can't start active connection.\r\n");   // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;
+    return sendMessage(ns, "425 Something is wrong, can't start active connection.\r\n", debug);
 }
 
 // Client sent LIST command, returns false if fails.
@@ -965,23 +937,7 @@ bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug, unsigned long &cli
 
     closesocket(sDataActive);                                                       // Close active connection.
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "226 File transfer complete.\r\n");                         // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "226 Directory send OK.\r\n", debug);
 }
 
 // Sends specified file to client.
@@ -1324,23 +1280,7 @@ bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool
 
     closesocket(sDataActive);                                                       // Close active connection.
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "226 File transfer complete.\r\n");                         // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "226 File transfer complete.\r\n", debug);
 }
 
 // Client sent STORE command, returns false if fails.
@@ -1361,23 +1301,7 @@ bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool de
 
     closesocket(sDataActive);                                                       // Close active connection.
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "226 File transfer complete.\r\n");                         // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "226 File transfer complete.\r\n",debug);
 }
 
 // Sends specified file to client.
@@ -1486,23 +1410,7 @@ bool commandChangeWorkingDirectory(SOCKET &ns, char receiveBuffer[], bool debug,
 
 	replaceBackslash(currentDirectory);                                             // Replace '/' to '\' for Windows
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "250 Directory successfully changed.\r\n");                 // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "250 Directory successfully changed.\r\n", debug);
 }
 
 // Client sent DELETE command, returns false if connection ended.
@@ -1522,23 +1430,7 @@ bool commandDelete(SOCKET &ns, char receiveBuffer[], bool debug)
 		std::cout << "<<<DEBUG INFO>>>: " << systemCommandDEL << " " << fileName << std::endl;
 	}
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "250 Requested file action okay, completed.\r\n");          // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "250 Requested file action okay, completed.\r\n", debug);
 }
 
 // Client sent MKD command, returns false if connection ended.
@@ -1562,19 +1454,8 @@ bool commandMakeDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char cur
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
     sprintf(sendBuffer, "257 '/%s' directory created\r\n", directoryName);          // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
 
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, sendBuffer, debug);
 }
 
 // Client sent RMD command, returns false if connection ended.
@@ -1594,23 +1475,7 @@ bool commandDeleteDirectory(SOCKET &ns, char receiveBuffer[], bool debug)
 		std::cout << "<<<DEBUG INFO>>>: " << systemCommandRMDIR << " " << directoryName << std::endl;
 	}
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "250 Requested file action okay, completed.\r\n");          // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "250 Requested file action okay, completed.\r\n", debug);
 }
 
 // Client sent TYPE command, returns false if connection ended.
@@ -1625,41 +1490,14 @@ bool commandType(SOCKET &ns, char receiveBuffer[], bool debug)
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
     sprintf(sendBuffer, "200 Type set to %s.\r\n", typeName);                       // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
 
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, sendBuffer, debug);
 }
 
 // Client sent FEAT command, returns false if fails.
 bool commandFeat(SOCKET &ns, bool debug)
 {
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer,"211-Extensions supported\r\n UTF8\r\n211 end\r\n");         // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "211-Extensions supported\r\n UTF8\r\n211 end\r\n", debug);
 }
 
 // Client sent OPTS command, returns false if connection ended.
@@ -1670,53 +1508,20 @@ bool commandOpts(SOCKET &ns, char receiveBuffer[], bool debug)
 
     removeCommand(receiveBuffer, optsName);                                         // Get TYPE name from command.
 
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-    
     if (strncmp(optsName, "UTF8 ON", 8) == 0)
     {
-        sprintf(sendBuffer, "200 UTF8 ON.\r\n");                                    // Add message to send buffer.
+        return sendMessage(ns, "200 UTF8 ON.\r\n", debug);
     }
     else
     {
-        sprintf(sendBuffer, "501 Syntax error in parameters or arguments.\r\n");    // Add message to send buffer.
+        return sendArgumentSyntaxError(ns, debug);
     }
-
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
 }
 
 // Client sent unknown command, returns false if fails.
 bool commandUnknown(SOCKET &ns, bool debug)
 {
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer,"550 unrecognised command.\r\n");                            // Add message to send buffer.
-    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
-
-    if (bytes < 0)                                                                  // Check if message sent.
-    {
-        return false;                                                               // Message not sent, return that connection ended.
-    }
-
-    return true;                                                                    // Connection not ended, command handled.
+    return sendMessage(ns, "550 unrecognised command.\r\n", debug);
 }
 
 // Takes a string with a 4 letter command at beginning and saves an output string with this removed.
@@ -1784,16 +1589,7 @@ bool isNumerical(const char c)
 // Sends client the closing connection method and closes the socket.
 void closeClientConnection(SOCKET &ns, bool debug)
 {
-    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
-    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
-
-    sprintf(sendBuffer, "221 FTP server closed the connection.\r\n");               // Create buffer to send to client.
-    send(ns, sendBuffer, strlen(sendBuffer), 0);                                    // Send reply to client.
-
-    if (debug)                                                                      // Check if debug on.
-    {
-        std::cout << "---> " << sendBuffer;
-    }
+    sendMessage(ns, "221 FTP server closed the connection.\r\n", debug);
 
     std::cout << "Disconnected from client." << std::endl;
 
@@ -2058,3 +1854,4 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
         outString[pos] = 0;
     }
 }
+

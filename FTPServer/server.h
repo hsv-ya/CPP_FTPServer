@@ -29,6 +29,7 @@ int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddres
 
 bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[]); // Receive and handle messages from client, returns true if client ends connection.
 bool receiveMessage(SOCKET &ns, char receiveBuffer[], bool debug);                  // Receives message and saves it in receive buffer, returns true if message was received.
+bool sendMessage(SOCKET &ns, const char sendBuffer[], bool debug);                  // Send message to client, returns true if message was sended.
 void closeClientConnection(SOCKET &ns, bool debug);                                 // Sends client the closing connection method and closes the socket.
 bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &authroisedLogin, bool debug); // Client sent USER command, returns false if fails.
 bool commandPassword(SOCKET &ns, char receiveBuffer[], char password[], bool authroisedLogin, bool debug);  // Client sent PASS command, returns false if fails.
