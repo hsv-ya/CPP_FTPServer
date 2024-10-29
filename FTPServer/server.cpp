@@ -1779,9 +1779,9 @@ void replaceBackslash(char buffer[])
 // Converting kirillic characters between Android and Windows 7
 void simple_conv(const char inString[], const int inLen, char outString[], const int outMaxLen, bool tudaSuda)
 {
-    #define ALL_SYMBOLS_FOR_CONVERT (31 + 31 + 4)
+    #define ALL_SYMBOLS_FOR_CONVERT (31 + 31 + 4 + 1)
 
-    static const char table_for_convert_Tuda[ALL_SYMBOLS_FOR_CONVERT][4] = {
+    static const char table_for_convert_Tuda[ALL_SYMBOLS_FOR_CONVERT][5] = {
         // small
         "\xd0\xb9\xE9",
         "\xd1\x86\xF6",
@@ -1850,10 +1850,12 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
         "\xd0\xaa\xda", // big "b
         "\xd1\x8a\xfa", // small "b
         "\xd0\x81\xa8", // big :E
-        "\xd1\x91\xb8"  // small :e
+        "\xd1\x91\xb8", // small :e
+
+        "\xe2\x84\x96\xb9" // N
     };
 
-    static const char table_for_convert_Suda[ALL_SYMBOLS_FOR_CONVERT][4] = {
+    static const char table_for_convert_Suda[ALL_SYMBOLS_FOR_CONVERT][5] = {
         // small
         "\xd0\xb9\xA9",
         "\xd1\x86\xE6",
@@ -1922,7 +1924,9 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
         "\xd0\xaa\xda", // big "b
         "\xd1\x8a\xfa", // small "b
         "\xd0\x81\xa8", // big :E
-        "\xd1\x91\xb8"  // small :e
+        "\xd1\x91\xb8", // small :e
+
+        "\xe2\x84\x96\xfc" // N
     };
 
     int pos = 0;
@@ -1935,7 +1939,7 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
             {
                 bool isFound = false;
 
-                for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+                for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT - 1; q++)
                 {
                     if (table_for_convert_Tuda[q][0] == inString[i] && table_for_convert_Tuda[q][1] == inString[i + 1])
                     {
@@ -1949,6 +1953,26 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
                 {
                     pos++;
                     i++;
+                }
+            }
+            else if ('\xe2' == inString[i])
+            {
+                bool isFound = false;
+
+                for (int q = ALL_SYMBOLS_FOR_CONVERT - 1; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+                {
+                    if (table_for_convert_Tuda[q][0] == inString[i] && table_for_convert_Tuda[q][1] == inString[i + 1] && table_for_convert_Tuda[q][2] == inString[i + 2])
+                    {
+                        outString[pos] = table_for_convert_Tuda[q][3];
+                        isFound = true;
+                        break;
+                    }
+                }
+
+                if (isFound)
+                {
+                    pos++;
+                    i += 2;
                 }
             }
             else
@@ -1972,7 +1996,7 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
         {
             bool isFound = false;
 
-            for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+            for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT - 1; q++)
             {
                 if (table_for_convert_Suda[q][2] == inString[i])
                 {
@@ -1989,7 +2013,28 @@ void simple_conv(const char inString[], const int inLen, char outString[], const
             }
             else
             {
-                outString[pos] = inString[i];
+                bool isFound2 = false;
+                
+                for (int q = ALL_SYMBOLS_FOR_CONVERT - 1; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+                {
+                    if (table_for_convert_Suda[q][3] == inString[i])
+                    {
+                        outString[pos] = table_for_convert_Suda[q][0];
+                        outString[pos + 1] = table_for_convert_Suda[q][1];
+                        outString[pos + 2] = table_for_convert_Suda[q][2];
+                        isFound2 = true;
+                        break;
+                    }
+                }
+
+                if (isFound2)
+                {
+                    pos += 2;
+                }
+                else
+                {
+                    outString[pos] = inString[i];
+                }
             }
 
             pos++;
