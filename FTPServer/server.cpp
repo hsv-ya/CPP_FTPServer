@@ -39,6 +39,7 @@ const char g_sMonths[12][4] = {
 const char systemCommandDEL[] = "del";
 const char systemCommandMKDIR[] = "mkdir";
 const char systemCommandRMDIR[] = "rmdir";
+const char systemCommandRENAME[] = "rename";
 
 bool g_convertKirillica = false;
 
@@ -391,9 +392,12 @@ int acceptClients(SOCKET &s, bool debug)
 	char currentDirectory[FILENAME_SIZE];                                           // For store currect directory.
     memset(&currentDirectory, 0, FILENAME_SIZE);                                    // Ensure blank.
 
+	char nameFileForRename[FILENAME_SIZE];                                          // For store currect directory.
+    memset(&nameFileForRename, 0, FILENAME_SIZE);                                   // Ensure blank.
+
     while (success)
     {
-        success = communicateWithClient(ns, sDataActive, authroisedLogin, debug, clientId, currentDirectory);   // Receive and handle messages from client.
+        success = communicateWithClient(ns, sDataActive, authroisedLogin, debug, clientId, currentDirectory, nameFileForRename);   // Receive and handle messages from client.
     }
 
     closeClientConnection(ns, debug);                                               // Close client connection.
@@ -442,7 +446,7 @@ int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddres
 }
 
 // Receive and handle messages from client, returns false if client ends connection.
-bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[])
+bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[], char nameFileForRename[])
 {
     char receiveBuffer[BUFFER_SIZE];                                                // Set up receive buffer.
     char userName[80];                                                              // To store the client's username.
@@ -551,6 +555,16 @@ bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogi
     else if (strncmp(receiveBuffer, "OPTS", 4) == 0)                                // Check if OPTS message received from client.
     {
         success = commandOpts(ns, receiveBuffer, debug);                            // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "RNFR", 4) == 0)                                // Check if RNFR message received from client.
+    {
+        success = commandRenameFrom(ns, receiveBuffer, nameFileForRename, debug);   // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "RNTO", 4) == 0)                                // Check if RNTO message received from client.
+    {
+        success = commandRenameTo(ns, receiveBuffer, nameFileForRename, debug);     // Handle command.
     }
 
     else                                                                            // Command not known.
@@ -966,19 +980,31 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug,
 		strcat(tmpDir_dirFiles, " >");
 		strcat(tmpDir_dirFiles, tmpDir_FILE);
 
-        // Save directory information in temp file.
-		executeSystemCommand(tmpDir_dirDirectory, currentDirectory, debug);
+        char bufferForNewFileName[FILENAME_SIZE];
+        memset(&bufferForNewFileName, 0, FILENAME_SIZE);
 
-		if (debug)
+        if (!g_convertKirillica)
         {
-			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirDirectory << " " << currentDirectory << std::endl;
+            strcpy(bufferForNewFileName, currentDirectory);
+        }
+        else
+        {
+            simple_conv(currentDirectory, strlen(currentDirectory), bufferForNewFileName, FILENAME_SIZE, true);
         }
 
-		executeSystemCommand(tmpDir_dirFiles, currentDirectory, debug);             // Save file information in temp file.
+        // Save directory information in temp file.
+		executeSystemCommand(tmpDir_dirDirectory, bufferForNewFileName, debug);
 
 		if (debug)
         {
-			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirFiles << " " << currentDirectory << std::endl;
+			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirDirectory << " " << bufferForNewFileName << std::endl;
+        }
+
+		executeSystemCommand(tmpDir_dirFiles, bufferForNewFileName, debug);         // Save file information in temp file.
+
+		if (debug)
+        {
+			std::cout << "<<<DEBUG INFO>>>: " << tmpDir_dirFiles << " " << bufferForNewFileName << std::endl;
         }
 
 		FILE *fInDIR = fopen(tmpDir, "w");                                          // Open file.
@@ -1551,6 +1577,97 @@ bool commandOpts(SOCKET &ns, char receiveBuffer[], bool debug)
     else
     {
         return sendArgumentSyntaxError(ns, debug);
+    }
+}
+
+// Client sent RNFR command, returns false if connection ended.
+bool commandRenameFrom(SOCKET &ns, char receiveBuffer[], char nameFileForRename[FILENAME_SIZE], bool debug)
+{
+    nameFileForRename[0] = '\0';
+
+    removeCommand(receiveBuffer, nameFileForRename, 5);                             // Get TYPE name from command.
+
+    return sendMessage(ns, "350 Requested file action pending further information.\r\n", debug);
+}
+
+// Client sent RNTO command, returns false if connection ended.
+bool commandRenameTo(SOCKET &ns, char receiveBuffer[], char nameFileForRename[FILENAME_SIZE], bool debug)
+{
+	char nameFileToRename[FILENAME_SIZE];
+    memset(&nameFileToRename, 0, FILENAME_SIZE);                                    // Ensure empty.
+
+    removeCommand(receiveBuffer, nameFileToRename, 5);                              // Get TYPE name from command.
+
+    if ((0 == strlen(nameFileForRename)) || (0 == strlen(nameFileToRename)))
+    {
+        nameFileForRename[0] = '\0';
+
+        return sendMessage(ns, "503 Bad sequence of commands.\r\n", debug);
+    }
+
+    char bufferForCommandAndFirstParameter[FILENAME_SIZE];
+    memset(&bufferForCommandAndFirstParameter, 0, FILENAME_SIZE);
+
+    strcpy(bufferForCommandAndFirstParameter, systemCommandRENAME);
+    strcat(bufferForCommandAndFirstParameter, " ");
+
+	if (NULL != strchr(nameFileForRename, ' '))                                     // Check if <SPACE> in name.
+	{
+		strcat(bufferForCommandAndFirstParameter, "\"");                            // Add quotation marks.
+	}
+
+	replaceBackslash(nameFileForRename);                                            // Replace '/' to '\' for Windows
+
+    char bufferForNewName[FILENAME_SIZE];
+    memset(&bufferForNewName, 0, FILENAME_SIZE);
+
+    if (!g_convertKirillica)
+    {
+        strcpy(bufferForNewName, nameFileForRename);
+    }
+    else
+    {
+        simple_conv(nameFileForRename, strlen(nameFileForRename), bufferForNewName, FILENAME_SIZE, true);
+    }
+
+    strcat(bufferForCommandAndFirstParameter, bufferForNewName);
+
+	if (NULL != strchr(nameFileForRename, ' '))                                     // Check if <SPACE> in name.
+	{
+		strcat(bufferForCommandAndFirstParameter, "\"");                            // Add quotation marks.
+	}
+
+    memset(&bufferForNewName, 0, FILENAME_SIZE);
+
+	replaceBackslash(nameFileToRename);                                             // Replace '/' to '\' for Windows
+
+    char *pch = nameFileToRename;
+    
+    while(NULL != strchr(pch, '\\'))
+    {
+        pch = strchr(pch, '\\') + 1;
+    }
+
+    if (!g_convertKirillica)
+    {
+        strcpy(bufferForNewName, pch);
+    }
+    else
+    {
+        simple_conv(pch, strlen(pch), bufferForNewName, FILENAME_SIZE, true);
+    }
+
+	int error = executeSystemCommand(bufferForCommandAndFirstParameter, bufferForNewName, debug);
+
+    nameFileForRename[0] = '\0';
+
+    if (error)
+    {
+        return sendMessage(ns, "503 Bad sequence of commands.\r\n", debug);
+    }
+    else
+    {
+        return sendMessage(ns, "250 Requested file action okay, file renamed.\r\n", debug);
     }
 }
 

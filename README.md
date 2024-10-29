@@ -21,7 +21,8 @@ RMD
 TYPE   only answer, but not really used
 FEAT   parameter'UTF8' only for command 'OPTS'
 OPTS   only parameter 'UTF8'
-
+RNFR
+RNTO
 ```
 
 ## Usage

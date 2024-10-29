@@ -27,7 +27,7 @@ int startListen(SOCKET &s, bool debug);                                         
 int acceptClients(SOCKET &s, bool debug);                                           // Accepts new clients and deals with commands.
 int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddress, char clientHost[], char clientService[], bool debug);    // Takes incoming connection and assigns new socket.
 
-bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[]); // Receive and handle messages from client, returns true if client ends connection.
+bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[], char nameFileForRename[]); // Receive and handle messages from client, returns true if client ends connection.
 bool receiveMessage(SOCKET &ns, char receiveBuffer[], bool debug);                  // Receives message and saves it in receive buffer, returns true if message was received.
 bool sendMessage(SOCKET &ns, const char sendBuffer[], bool debug);                  // Send message to client, returns true if message was sended.
 void closeClientConnection(SOCKET &ns, bool debug);                                 // Sends client the closing connection method and closes the socket.
@@ -46,6 +46,8 @@ bool commandDeleteDirectory(SOCKET &ns, char receiveBuffer[], bool debug);      
 bool commandType(SOCKET &ns, char receiveBuffer[], bool debug);                     // Client sent TYPE command, returns false if connection ended.
 bool commandFeat(SOCKET &ns, bool debug);                                           // Client sent FEAT command, returns false if send fails.
 bool commandOpts(SOCKET &ns, char receiveBuffer[], bool debug);                     // Client sent OPTS command, returns false if send fails.
+bool commandRenameFrom(SOCKET &ns, char receiveBuffer[], char nameFileForRename[], bool debug); // Client sent RNFR command, returns false if connection ended.
+bool commandRenameTo(SOCKET &ns, char receiveBuffer[], char nameFileForRename[], bool debug); // Client sent RNTO command, returns false if connection ended.
 bool commandUnknown(SOCKET &ns, bool debug);                                        // Client sent unknown command, returns false if send fails.
 int executeSystemCommand(const char commandNameWithKeys[], const char fileName[], bool debug);  // Execute system command.
 
