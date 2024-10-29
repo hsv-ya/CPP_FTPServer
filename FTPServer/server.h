@@ -39,6 +39,12 @@ bool commandList(SOCKET &ns, SOCKET &sDataActive, bool debug, unsigned long &cli
 bool commandRetrieve(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug, char currentDirectory[]);    // Client sent RETR command, returns false if fails.
 bool commandStore(SOCKET &ns, SOCKET &sDataActive, char receiveBuffer[], bool debug, char currentDirectory[]);   // Client sent STORE command, returns false if fails.
 bool commandChangeWorkingDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char currentDirectory[]);    // Client sent CWD command, returns false if connection ended.
+bool commandDelete(SOCKET &ns, char receiveBuffer[], bool debug);                   // Client sent DELETE command, returns false if connection ended.
+bool commandMakeDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char currentDirectory[]);     // Client sent MKD command, returns false if connection ended.
+bool commandDeleteDirectory(SOCKET &ns, char receiveBuffer[], bool debug);          // Client sent RMD command, returns false if connection ended.
+bool commandType(SOCKET &ns, char receiveBuffer[], bool debug);                     // Client sent TYPE command, returns false if connection ended.
+bool commandFeat(SOCKET &ns, bool debug);                                           // Client sent FEAT command, returns false if send fails.
+bool commandOpts(SOCKET &ns, char receiveBuffer[], bool debug);                     // Client sent OPTS command, returns false if send fails.
 bool commandUnknown(SOCKET &ns, bool debug);                                        // Client sent unknown command, returns false if send fails.
 int executeSystemCommand(const char commandNameWithKeys[], const char fileName[], bool debug);  // Execute system command.
 

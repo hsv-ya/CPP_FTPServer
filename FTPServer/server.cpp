@@ -37,6 +37,8 @@ const char g_sMonths[12][4] = {
 };
 
 const char systemCommandDEL[] = "del";
+const char systemCommandMKDIR[] = "mkdir";
+const char systemCommandRMDIR[] = "rmdir";
 
 bool g_convertKirillica = false;
 
@@ -519,6 +521,36 @@ bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogi
     else if (strncmp(receiveBuffer, "CWD", 3) == 0)                                 // Check if CWD message received from client.
     {
         success = commandChangeWorkingDirectory(ns, receiveBuffer, debug, currentDirectory); // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "DELE", 4) == 0)                                // Check if DELE message received from client.
+    {
+        success = commandDelete(ns, receiveBuffer, debug);                          // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "MKD", 3) == 0)                                 // Check if MKD message received from client.
+    {
+        success = commandMakeDirectory(ns, receiveBuffer, debug, currentDirectory); // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "RMD", 3) == 0)                                 // Check if RMD message received from client.
+    {
+        success = commandDeleteDirectory(ns, receiveBuffer, debug);                 // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "TYPE", 4) == 0)                                // Check if TYPE message received from client.
+    {
+        success = commandType(ns, receiveBuffer, debug);                            // Handle command.
+    }
+
+    else if (strncmp(receiveBuffer, "FEAT", 4) == 0)                                // Check if FEAT message received from client.
+    {
+        success = commandFeat(ns, debug);                                           // Handle command.
+    }
+    
+    else if (strncmp(receiveBuffer, "OPTS", 4) == 0)                                // Check if OPTS message received from client.
+    {
+        success = commandOpts(ns, receiveBuffer, debug);                            // Handle command.
     }
 
     else                                                                            // Command not known.
@@ -1458,6 +1490,198 @@ bool commandChangeWorkingDirectory(SOCKET &ns, char receiveBuffer[], bool debug,
     memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
 
     sprintf(sendBuffer, "250 Directory successfully changed.\r\n");                 // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent DELETE command, returns false if connection ended.
+bool commandDelete(SOCKET &ns, char receiveBuffer[], bool debug)
+{
+    char fileName[FILENAME_SIZE];                                                   // Stores the name of the file to delete.
+    memset(&fileName, 0, FILENAME_SIZE);                                            // Ensure empty.
+
+    removeCommand(receiveBuffer, fileName, 5);                                      // Get file name from command.
+
+	replaceBackslash(fileName);                                                     // Replace '/' to '\' for Windows
+
+	executeSystemCommand(systemCommandDEL, fileName, debug);
+
+	if (debug)
+	{
+		std::cout << "<<<DEBUG INFO>>>: " << systemCommandDEL << " " << fileName << std::endl;
+	}
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer, "250 Requested file action okay, completed.\r\n");          // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent MKD command, returns false if connection ended.
+bool commandMakeDirectory(SOCKET &ns, char receiveBuffer[], bool debug, char currentDirectory[FILENAME_SIZE])
+{
+	char directoryName[FILENAME_SIZE];                                              // Stores the name of the directory to create.
+    memset(&directoryName, 0, FILENAME_SIZE);                                       // Ensure empty.
+
+    removeCommand(receiveBuffer, directoryName);                                    // Get directory name from command.
+
+	replaceBackslash(directoryName);                                                // Replace '/' to '\' for Windows
+
+	executeSystemCommand(systemCommandMKDIR, directoryName, debug);
+
+	if (debug)                                                                      // Check if debug on.
+	{
+		std::cout << "<<<DEBUG INFO>>>: " << systemCommandMKDIR << " " << directoryName << std::endl;
+	}
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer, "257 '/%s' directory created\r\n", directoryName);          // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent RMD command, returns false if connection ended.
+bool commandDeleteDirectory(SOCKET &ns, char receiveBuffer[], bool debug)
+{
+	char directoryName[FILENAME_SIZE];                                              // Stores the name of the directory to delete.
+    memset(&directoryName, 0, FILENAME_SIZE);                                       // Ensure empty.
+
+    removeCommand(receiveBuffer, directoryName);                                    // Get directory name from command.
+
+	replaceBackslash(directoryName);                                                // Replace '/' to '\' for Windows
+
+	executeSystemCommand(systemCommandRMDIR, directoryName, debug);
+
+	if (debug)
+	{
+		std::cout << "<<<DEBUG INFO>>>: " << systemCommandRMDIR << " " << directoryName << std::endl;
+	}
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer, "250 Requested file action okay, completed.\r\n");          // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent TYPE command, returns false if connection ended.
+bool commandType(SOCKET &ns, char receiveBuffer[], bool debug)
+{
+	char typeName[BUFFER_SIZE];                                                     // Stores the name of the type.
+    memset(&typeName, 0, BUFFER_SIZE);                                              // Ensure empty.
+
+    removeCommand(receiveBuffer, typeName);                                         // Get TYPE name from command.
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer, "200 Type set to %s.\r\n", typeName);                       // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent FEAT command, returns false if fails.
+bool commandFeat(SOCKET &ns, bool debug)
+{
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+
+    sprintf(sendBuffer,"211-Extensions supported\r\n UTF8\r\n211 end\r\n");         // Add message to send buffer.
+    int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send reply to client.
+
+    if (debug)                                                                      // Check if debug on.
+    {
+        std::cout << "---> " << sendBuffer;
+    }
+
+    if (bytes < 0)                                                                  // Check if message sent.
+    {
+        return false;                                                               // Message not sent, return that connection ended.
+    }
+
+    return true;                                                                    // Connection not ended, command handled.
+}
+
+// Client sent OPTS command, returns false if connection ended.
+bool commandOpts(SOCKET &ns, char receiveBuffer[], bool debug)
+{
+	char optsName[BUFFER_SIZE];
+    memset(&optsName, 0, BUFFER_SIZE);                                              // Ensure empty.
+
+    removeCommand(receiveBuffer, optsName);                                         // Get TYPE name from command.
+
+    char sendBuffer[BUFFER_SIZE];                                                   // Set up send buffer.
+    memset(&sendBuffer, 0, BUFFER_SIZE);                                            // Ensure blank.
+    
+    if (strncmp(optsName, "UTF8 ON", 8) == 0)
+    {
+        sprintf(sendBuffer, "200 UTF8 ON.\r\n");                                    // Add message to send buffer.
+    }
+    else
+    {
+        sprintf(sendBuffer, "501 Syntax error in parameters or arguments.\r\n");    // Add message to send buffer.
+    }
+
     int bytes = send(ns, sendBuffer, strlen(sendBuffer), 0);                        // Send message to client.
 
     if (debug)                                                                      // Check if debug on.
