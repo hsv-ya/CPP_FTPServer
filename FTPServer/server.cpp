@@ -38,13 +38,18 @@ const char g_sMonths[12][4] = {
 
 const char systemCommandDEL[] = "del";
 
+bool g_convertKirillica = false;
+
 // Arguments:
 //      0:  Program name
 //      1:  Port number
 //      2:  Debug mode (true/false)
+//      3:  Use convert kirillica file and directory name between Android and Windows 7 (true/false)
 int main(int argc, char *argv[])
 {
     bool debug = debugMode(argc, argv);                                             // Debug mode off by default.
+
+    g_convertKirillica = useConvertKirillica(argc, argv);                           // Off by default.
 
 	if (NULL == getenv("TEMP"))                                                     // in Windows environment string <TEMP> MUST HAVE!!
 	{
@@ -126,6 +131,20 @@ bool debugMode(int argc, char * argv[])
     }
 
     return false;                                                                   // Set debug mode off.
+}
+
+// Returns true if user indicated that convert kirillica should be on.
+bool useConvertKirillica(int argc, char * argv[])
+{
+    if (argc > 3)                                                                   // Check if there are more than 3 arguments.
+    {
+        if (strcmp(argv[3], "true") == 0)                                           // Check if argument 4 is convert kirillica command.
+        {
+            return true;                                                            // Set convert kirillica on.
+        }
+    }
+
+    return false;                                                                   // Set convert kirillica off.
 }
 
 // Starts WSA.
@@ -992,7 +1011,16 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug,
 			killLastCRLF(tmpBuffer);
 			memset(&tmpBufferDir, 0, BUFFER_SIZE);
 			strcpy(tmpBufferDir, "drw-rw-rw-    1 user       group        512 Oct 15  2024 ");
-			strcat(tmpBufferDir, tmpBuffer);
+			if (!g_convertKirillica)
+			{
+				strcat(tmpBufferDir, tmpBuffer);
+			}
+			else
+			{
+				char bufferForNewFileName[FILENAME_SIZE];
+				simple_conv(tmpBuffer, strlen(tmpBuffer), bufferForNewFileName, FILENAME_SIZE, false);
+				strcat(tmpBufferDir, bufferForNewFileName);
+			}
 			if (!isFirst)
             {
 				fputs("\n", fInDIR);
@@ -1047,7 +1075,16 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug,
 				killLastCRLF(tmpFileName);
 				memset(&tmpBufferFile, 0, FILENAME_SIZE);
 				sprintf(tmpBufferFile, "-rw-rw-rw-    1 user       group %10lu %s %2d  %4d ", ulFileSize, g_sMonths[iMonths - 1], iDay, iYear);
-                strcat(tmpBufferFile, tmpFileName);
+                if (!g_convertKirillica)
+                {
+                    strcat(tmpBufferFile, tmpFileName);
+                }
+                else
+                {
+                    char bufferForNewFileName[FILENAME_SIZE];
+                    simple_conv(tmpFileName, strlen(tmpFileName), bufferForNewFileName, FILENAME_SIZE, false);
+                    strcat(tmpBufferFile, bufferForNewFileName);
+                }
                 if (!isFirst)
                 {
 					fputs("\n", fInDIR);
@@ -1099,7 +1136,16 @@ int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug,
         }
 		strcat(fileNameFull, fileName);                                             // Add file name.
 
-        fIn = fopen(fileNameFull, "rb");                                        // Open file.
+        if (!g_convertKirillica)
+        {
+            fIn = fopen(fileNameFull, "rb");                                        // Open file.
+        }
+        else
+        {
+            char bufferForNewFileName[FILENAME_SIZE];
+            simple_conv(fileNameFull, strlen(fileNameFull), bufferForNewFileName, FILENAME_SIZE, true);
+            fIn = fopen(bufferForNewFileName, "rb");                                // Open file.
+        }
 	}
 
     if (fIn == NULL)                                                                // Check if valid file.
@@ -1337,7 +1383,16 @@ bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug
 
     std::ofstream fOut;                                                             // Output file stream.
 
-    fOut.open(fileNameFull, std::ofstream::binary);                             // Open file.
+    if (!g_convertKirillica)
+    {
+        fOut.open(fileNameFull, std::ofstream::binary);                             // Open file.
+    }
+    else
+    {
+        char fileNameFullNorm[FILENAME_SIZE];
+        simple_conv(fileNameFull, strlen(fileNameFull), fileNameFullNorm, FILENAME_SIZE, true);
+        fOut.open(fileNameFullNorm, std::ofstream::binary);                         // Open file.
+    }
 
     char tempBuffer[BIG_BUFFER_SIZE];                                               // Temporary character buffer.
 	int sizeBuffer = 0;
@@ -1545,5 +1600,237 @@ void replaceBackslash(char buffer[])
         {
 			buffer[i] = '\\';                                                       // Set backslash.
         }
+    }
+}
+
+// Converting kirillic characters between Android and Windows 7
+void simple_conv(const char inString[], const int inLen, char outString[], const int outMaxLen, bool tudaSuda)
+{
+    #define ALL_SYMBOLS_FOR_CONVERT (31 + 31 + 4)
+
+    static const char table_for_convert_Tuda[ALL_SYMBOLS_FOR_CONVERT][4] = {
+        // small
+        "\xd0\xb9\xE9",
+        "\xd1\x86\xF6",
+        "\xd1\x83\xF3",
+        "\xd0\xba\xEA",
+        "\xd0\xb5\xE5",
+        "\xd0\xbd\xED",
+        "\xd0\xb3\xE3",
+        "\xd1\x88\xF8",
+        "\xd1\x89\xF9",
+        "\xd0\xb7\xE7",
+        "\xd1\x85\xF5",
+        "\xd1\x84\xF4",
+        "\xd1\x8b\xFB",
+        "\xd0\xb2\xE2",
+        "\xd0\xb0\xE0",
+        "\xd0\xbf\xEF",
+        "\xd1\x80\xF0",
+        "\xd0\xbe\xEE",
+        "\xd0\xbb\xEB",
+        "\xd0\xb4\xE4",
+        "\xd0\xb6\xE6",
+        "\xd1\x8d\xFD",
+        "\xd1\x8f\xFF",
+        "\xd1\x87\xF7",
+        "\xd1\x81\xF1",
+        "\xd0\xbc\xEC",
+        "\xd0\xb8\xE8",
+        "\xd1\x82\xF2",
+        "\xd1\x8c\xFC",
+        "\xd0\xb1\xE1",
+        "\xd1\x8e\xFE",
+        // big
+        "\xd0\x99\xC9",
+        "\xd0\xa6\xD6",
+        "\xd0\xa3\xD3",
+        "\xd0\x9a\xCA",
+        "\xd0\x95\xC5",
+        "\xd0\x9d\xCD",
+        "\xd0\x93\xC3",
+        "\xd0\xa8\xD8",
+        "\xd0\xa9\xD9",
+        "\xd0\x97\xC7",
+        "\xd0\xa5\xD5",
+        "\xd0\xa4\xD4",
+        "\xd0\xab\xDB",
+        "\xd0\x92\xC2",
+        "\xd0\x90\xC0",
+        "\xd0\x9f\xCF",
+        "\xd0\xa0\xD0",
+        "\xd0\x9e\xCE",
+        "\xd0\x9b\xCB",
+        "\xd0\x94\xC4",
+        "\xd0\x96\xC6",
+        "\xd0\xad\xDD",
+        "\xd0\xaf\xDF",
+        "\xd0\xa7\xD7",
+        "\xd0\xa1\xD1",
+        "\xd0\x9c\xCC",
+        "\xd0\x98\xC8",
+        "\xd0\xa2\xD2",
+        "\xd0\xac\xDC",
+        "\xd0\x91\xC1",
+        "\xd0\xae\xDE",
+
+        "\xd0\xaa\xda", // big "b
+        "\xd1\x8a\xfa", // small "b
+        "\xd0\x81\xa8", // big :E
+        "\xd1\x91\xb8"  // small :e
+    };
+
+    static const char table_for_convert_Suda[ALL_SYMBOLS_FOR_CONVERT][4] = {
+        // small
+        "\xd0\xb9\xA9",
+        "\xd1\x86\xE6",
+        "\xd1\x83\xE3",
+        "\xd0\xba\xAA",
+        "\xd0\xb5\xA5",
+        "\xd0\xbd\xAD",
+        "\xd0\xb3\xA3",
+        "\xd1\x88\xE8",
+        "\xd1\x89\xE9",
+        "\xd0\xb7\xA7",
+        "\xd1\x85\xE5",
+        "\xd1\x84\xE4",
+        "\xd1\x8b\xEB",
+        "\xd0\xb2\xA2",
+        "\xd0\xb0\xA0",
+        "\xd0\xbf\xAF",
+        "\xd1\x80\xE0",
+        "\xd0\xbe\xAE",
+        "\xd0\xbb\xAB",
+        "\xd0\xb4\xA4",
+        "\xd0\xb6\xA6",
+        "\xd1\x8d\xED",
+        "\xd1\x8f\xEF",
+        "\xd1\x87\xE7",
+        "\xd1\x81\xE1",
+        "\xd0\xbc\xAC",
+        "\xd0\xb8\xA8",
+        "\xd1\x82\xE2",
+        "\xd1\x8c\xEC",
+        "\xd0\xb1\xA1",
+        "\xd1\x8e\xEE",
+        // big
+        "\xd0\x99\x89",
+        "\xd0\xa6\x96",
+        "\xd0\xa3\x93",
+        "\xd0\x9a\x8A",
+        "\xd0\x95\x85",
+        "\xd0\x9d\x8D",
+        "\xd0\x93\x83",
+        "\xd0\xa8\x98",
+        "\xd0\xa9\x99",
+        "\xd0\x97\x87",
+        "\xd0\xa5\x95",
+        "\xd0\xa4\x94",
+        "\xd0\xab\x9B",
+        "\xd0\x92\x82",
+        "\xd0\x90\x80",
+        "\xd0\x9f\x8F",
+        "\xd0\xa0\x90",
+        "\xd0\x9e\x8E",
+        "\xd0\x9b\x8B",
+        "\xd0\x94\x84",
+        "\xd0\x96\x86",
+        "\xd0\xad\x9D",
+        "\xd0\xaf\x9F",
+        "\xd0\xa7\x97",
+        "\xd0\xa1\x91",
+        "\xd0\x9c\x8C",
+        "\xd0\x98\x88",
+        "\xd0\xa2\x92",
+        "\xd0\xac\x9C",
+        "\xd0\x91\x81",
+        "\xd0\xae\x9E",
+
+        "\xd0\xaa\xda", // big "b
+        "\xd1\x8a\xfa", // small "b
+        "\xd0\x81\xa8", // big :E
+        "\xd1\x91\xb8"  // small :e
+    };
+
+    int pos = 0;
+
+    if (tudaSuda)
+    {
+        for (int i = 0; i < inLen;)
+        {
+            if ('\xd0' == inString[i] || '\xd1' == inString[i])
+            {
+                bool isFound = false;
+
+                for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+                {
+                    if (table_for_convert_Tuda[q][0] == inString[i] && table_for_convert_Tuda[q][1] == inString[i + 1])
+                    {
+                        outString[pos] = table_for_convert_Tuda[q][2];
+                        isFound = true;
+                        break;
+                    }
+                }
+
+                if (isFound)
+                {
+                    pos++;
+                    i++;
+                }
+            }
+            else
+            {
+                outString[pos] = inString[i];
+                pos++;
+            }
+
+            i++;
+
+            if (pos > outMaxLen)
+            {
+                outString[outMaxLen - 1] = 0;
+                break;
+            }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < inLen;)
+        {
+            bool isFound = false;
+
+            for (int q = 0; q < ALL_SYMBOLS_FOR_CONVERT; q++)
+            {
+                if (table_for_convert_Suda[q][2] == inString[i])
+                {
+                    outString[pos] = table_for_convert_Suda[q][0];
+                    outString[pos + 1] = table_for_convert_Suda[q][1];
+                    isFound = true;
+                    break;
+                }
+            }
+
+            if (isFound)
+            {
+                pos++;
+            }
+            else
+            {
+                outString[pos] = inString[i];
+            }
+
+            pos++;
+            i++;
+
+            if (pos > outMaxLen)
+            {
+                outString[outMaxLen - 1] = 0;
+                break;
+            }
+        }
+    }
+    if (pos < outMaxLen)
+    {
+        outString[pos] = 0;
     }
 }

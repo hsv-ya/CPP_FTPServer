@@ -15,6 +15,7 @@
 #define BIG_BUFFER_SIZE 65535
 
 bool debugMode(int argc, char * argv[]);                                            // Returns true if user indicated that debug mode should be on.
+bool useConvertKirillica(int argc, char * argv[]);                                  // Returns true if user indicated that convert kirillica should be on.
 int startWinsock(bool debug);                                                       // Starts WSA.
 int getServerAddressInfo(struct addrinfo * &result, int argc, char *argv[], bool debug);    // Gets the servers address information based on arguments.
 int allocateServerSocket(SOCKET &s, struct addrinfo *result, bool debug);           // Allocates the server's socket.
@@ -26,7 +27,7 @@ int startListen(SOCKET &s, bool debug);                                         
 int acceptClients(SOCKET &s, bool debug);                                           // Accepts new clients and deals with commands.
 int acceptNewClient(SOCKET &ns, SOCKET &s, struct sockaddr_storage &clientAddress, char clientHost[], char clientService[], bool debug);    // Takes incoming connection and assigns new socket.
 
-bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[FILENAME_SIZE]); // Receive and handle messages from client, returns true if client ends connection.
+bool communicateWithClient(SOCKET &ns, SOCKET &sDataActive, bool &authroisedLogin, bool debug, unsigned long &clientId, char currentDirectory[]); // Receive and handle messages from client, returns true if client ends connection.
 bool receiveMessage(SOCKET &ns, char receiveBuffer[], bool debug);                  // Receives message and saves it in receive buffer, returns true if message was received.
 void closeClientConnection(SOCKET &ns, bool debug);                                 // Sends client the closing connection method and closes the socket.
 bool commandUserName(SOCKET &ns, char receiveBuffer[], char userName[], bool &authroisedLogin, bool debug); // Client sent USER command, returns false if fails.
@@ -60,4 +61,6 @@ bool sendArgumentSyntaxError(SOCKET &ns, bool debug);                           
 int sendFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug, unsigned long clientId, char currentDirectory[]);   // Sends specified file to client.
 bool saveFile(SOCKET &ns, SOCKET &sDataActive, const char fileName[], bool debug, char currentDirectory[]);  // Sends specified file to client.
 bool receiveFileContents(SOCKET &sDataActive, char receiveBuffer[], int &sizeBuffer);   // Receives message and saves it in receive buffer, returns false if connection ended.
+
+void simple_conv(const char inString[], const int inLen, char outString[], const int outMaxLen, bool tudaSuda); // Converting kirillic characters between Android and Windows 7
 
